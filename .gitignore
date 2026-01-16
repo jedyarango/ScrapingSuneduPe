@@ -1,0 +1,4 @@
+venv666/
+.venv/
+*.xlsx
+~$*.xlsx
