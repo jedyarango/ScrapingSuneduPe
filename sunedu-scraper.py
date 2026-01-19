@@ -179,27 +179,48 @@ def main():
                         continue # Reintentar validación
 
                     # --- CASO C: CAPTURA DE RESULTADOS ---
+# --- CASO C: CAPTURA DE RESULTADOS ---
                     try:
+                        # Esperamos a que la tabla aparezca
                         WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.custom-table")))
+                        
+                        # Este selector toma todos los TR dentro de CUALQUIER tbody (resuelve el problema de los 2 tbodies)
                         filas = driver.find_elements(By.CSS_SELECTOR, "table.custom-table tbody tr")
                         
                         if filas:
                             for fila in filas:
                                 cols = fila.find_elements(By.TAG_NAME, "td")
                                 if len(cols) >= 3:
-                                    # Extracción y limpieza
+                                    # --- COLUMNA 1: Nombre y DNI ---
                                     texto_c0 = cols[0].text.strip().split('\n')
                                     nombre = texto_c0[0] if texto_c0 else "-"
                                     dni_clean = texto_c0[1].replace("DNI", "").strip() if len(texto_c0) > 1 else dni
 
-                                    texto_c1 = cols[1].text.strip().split('\n')
-                                    grado, f_dip, f_mat, f_egr = "-", "-", "-", "-"
-                                    for linea in texto_c1:
-                                        if "Fecha de diploma:" in linea: f_dip = linea.replace("Fecha de diploma:", "").strip()
-                                        elif "Fecha matrícula:" in linea: f_mat = linea.replace("Fecha matrícula:", "").strip()
-                                        elif "Fecha egreso:" in linea: f_egr = linea.replace("Fecha egreso:", "").strip()
-                                        elif "Grado o Título" not in linea: grado = linea.strip()
+                                    # --- COLUMNA 2: Grado y Fechas ---
+                                    # 1. EXTRACCIÓN DEL TÍTULO EXACTO (Estrategia por selector CSS)
+                                    # Buscamos el párrafo (<p>) que contiene la clase de color azul específica del título
+                                    try:
+                                        # Usamos XPath para buscar el elemento con el color específico '#2fc7f0'
+                                        grado_element = cols[1].find_element(By.XPATH, ".//p[contains(@class, 'text-[#2fc7f0]')]")
+                                        grado = grado_element.text.strip()
+                                    except:
+                                        # Fallback por si cambia el diseño
+                                        grado = "No identificado"
 
+                                    # 2. EXTRACCIÓN DE FECHAS (Estrategia por texto)
+                                    texto_c1 = cols[1].text.strip().split('\n')
+                                    f_dip, f_mat, f_egr = "-", "-", "-"
+                                    
+                                    for linea in texto_c1:
+                                        if "Fecha de diploma:" in linea: 
+                                            f_dip = linea.replace("Fecha de diploma:", "").strip()
+                                        elif "Fecha matrícula:" in linea: 
+                                            f_mat = linea.replace("Fecha matrícula:", "").strip()
+                                        elif "Fecha egreso:" in linea: 
+                                            f_egr = linea.replace("Fecha egreso:", "").strip()
+                                        # YA NO asignamos grado aquí, para evitar que "Duración de estudios" lo sobrescriba
+
+                                    # --- COLUMNA 3: Institución y País ---
                                     texto_c2 = cols[2].text.strip().split('\n')
                                     inst = texto_c2[0] if texto_c2 else "-"
                                     pais = texto_c2[1] if len(texto_c2) > 1 else "-"
@@ -209,6 +230,7 @@ def main():
                                         "Fecha Diploma": f_dip, "Fecha Matricula": f_mat, "Fecha Egreso": f_egr,
                                         "Institucion": inst, "Pais": pais
                                     })
+                            
                             print(f"✅ Datos capturados correctamente.")
                             dni_procesado_exito = True
                         
@@ -221,9 +243,7 @@ def main():
                         break # Salir del ciclo, ir al siguiente DNI
 
                     except TimeoutException:
-                        # Si no hay tabla y no hubo aviso de "No resultados", algo raro pasó
                         print("⚠️ Timeout esperando tabla. Posible error de carga.")
-                        # Esto provocará que el ciclo continue y se intente de nuevo o se refresque
                 
                 except Exception as e:
                     print(f"⚠️ Error crítico en ciclo {ciclo}: {e}")
